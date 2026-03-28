@@ -73,16 +73,14 @@ class GameScene extends Phaser.Scene {
 
     // ── preload ───────────────────────────────────────────────────────────────
     preload() {
-        this.load.image('bg1', 'assets/parallax_mountain_pack/layers/parallax-mountain-bg.png');
-        this.load.image('bg2', 'assets/parallax_mountain_pack/layers/parallax-mountain-montain-far.png');
-        this.load.image('bg3', 'assets/parallax_mountain_pack/layers/parallax-mountain-mountains.png');
-        this.load.image('bg4', 'assets/parallax_mountain_pack/layers/parallax-mountain-trees.png');
-        this.load.image('bg5', 'assets/parallax_mountain_pack/layers/parallax-mountain-foreground-trees.png');
+        // Always need the rogue spritesheet
         this.load.spritesheet('rogue', 'assets/rogue spritesheet calciumtrice.png', {
             frameWidth: 32,
             frameHeight: 32
         });
-        this.load.image('ruin', 'assets/classical_ruin_tiles.png');
+        // Delegate arena-specific assets to the selected arena
+        const arena = window.ARENAS[window.selectedArena || 'ruins'];
+        arena.preload(this);
     }
 
     // ── create ────────────────────────────────────────────────────────────────
@@ -90,14 +88,13 @@ class GameScene extends Phaser.Scene {
         try {
             const { width, height } = this.scale;
 
-            this.bg1 = this.add.image(width / 2, height / 2, 'bg1').setDisplaySize(width, height).setDepth(-5);
-            this.bg2 = this.add.image(width / 2, height / 2, 'bg2').setDisplaySize(width, height).setDepth(-4);
-            this.bg3 = this.add.image(width / 2, height / 2, 'bg3').setDisplaySize(width, height).setDepth(-3);
-            this.bg4 = this.add.image(width / 2, height / 2, 'bg4').setDisplaySize(width, height).setDepth(-2);
-            this.bg5 = this.add.image(width / 2, height / 2, 'bg5').setDisplaySize(width, height).setDepth(-1);
+            // --- Build background and platforms via arena definition ---
+            const arena = window.ARENAS[window.selectedArena || 'ruins'];
+            arena.buildBackground(this);
 
             // --- Generate textures from Graphics (no external assets) ---
             createCircleTexture(this, 'fireball_tex', 10, 0xff8800);    // orange
+
 
             // Animations
             this.anims.create({
@@ -145,27 +142,8 @@ class GameScene extends Phaser.Scene {
                 allowGravityY: false,       // spells fly straight
             });
 
-            // Extract just the dark stone brick section from the right side of the mockup floor
-            this.textures.get('ruin').add('plat_stone', 0, 192, 208, 64, 32);
-
-            // Construct mid-air jumps with repeating tile textures
-            this.platforms = this.physics.add.staticGroup();
-
-            const makePlat = (x, y, visualWidth) => {
-                const textureScale = 1.5;
-                const visualHeight = 32 * textureScale;
-                
-                const plat = this.add.tileSprite(x, y, visualWidth, visualHeight, 'ruin', 'plat_stone');
-                plat.tileScaleX = textureScale;
-                plat.tileScaleY = textureScale;
-                
-                this.physics.add.existing(plat, true);
-                this.platforms.add(plat);
-            };
-
-            makePlat(width / 4, height - 150, 256);
-            makePlat(width - (width / 4), height - 250, 256);
-            makePlat(width / 2, height - 400, 256);
+            // --- Platforms (built by arena) ---
+            this.platforms = arena.buildPlatforms(this, width, height);
 
             // Physics collisions against platforms
             this.physics.add.collider(this.player1, this.platforms);
@@ -535,7 +513,7 @@ const config = {
             debug: false,
         },
     },
-    scene: [GameScene],
+    scene: [MenuScene, GameScene],
 };
 
 const game = new Phaser.Game(config);
