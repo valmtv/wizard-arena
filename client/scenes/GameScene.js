@@ -176,6 +176,36 @@ class GameScene extends Phaser.Scene {  // eslint-disable-line no-undef
             down: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S),     // eslint-disable-line no-undef
             jump: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE), // eslint-disable-line no-undef
         };
+
+        // Click to cast prepared spell
+        this.input.on('pointerdown', (pointer) => {
+            if (this.myPlayer?.preparedSpell) {
+                const result = this.myPlayer.preparedSpell;
+                this.myPlayer.preparedSpell = null; // Clear after use
+
+                const scale = (typeof volumeToScale !== 'undefined') ? volumeToScale(result.volume) : 1.0; // eslint-disable-line no-undef
+
+                window.spellCaster.cast(  // eslint-disable-line no-undef
+                    result,
+                    this.myPlayer,
+                    this.otherPlayer,
+                    pointer
+                );
+
+                // Broadcast to other player
+                const dx = pointer.worldX - this.myPlayer.x;
+                const dy = pointer.worldY - this.myPlayer.y;
+                socket.emit('SPELL_CAST', {  // eslint-disable-line no-undef
+                    spell: result.spell,
+                    x: this.myPlayer.x,
+                    y: this.myPlayer.y,
+                    targetX: pointer.worldX,
+                    targetY: pointer.worldY,
+                    angle: Math.atan2(dy, dx),
+                    scale: scale,
+                });
+            }
+        });
     }
 
     _buildHUD(width, height) {
@@ -185,11 +215,16 @@ class GameScene extends Phaser.Scene {  // eslint-disable-line no-undef
             color: '#ff8800', stroke: '#000000', strokeThickness: 4,
         }).setOrigin(0.5).setDepth(50).setScrollFactor(0);
 
-        window.addEventListener('keydown', (e) => {
-            if (e.key === 'Shift' && !e.repeat) this._castingLabel.setText('🎤  CASTING…');
+        window.addEventListener('spellRecordStart', () => {
+            if (this._castingLabel) this._castingLabel.setText('🎤  LISTENING…');
         });
-        window.addEventListener('keyup', (e) => {
-            if (e.key === 'Shift') this._castingLabel.setText('');
+        window.addEventListener('spellRecordStop', () => {
+            if (this._castingLabel) {
+                this._castingLabel.setText('⏳  PREPARING…');
+                this.time.delayedCall(1500, () => {
+                   if (this._castingLabel.text === '⏳  PREPARING…') this._castingLabel.setText('');
+                });
+            }
         });
 
         // Spell legend
@@ -208,9 +243,9 @@ class GameScene extends Phaser.Scene {  // eslint-disable-line no-undef
             }).setDepth(50).setScrollFactor(0);
         });
 
-        this.add.text(width / 2, height - 20, 'Hold SHIFT + say a spell name', {
+        this.add.text(width / 2, height - 20, 'Press SHIFT to Speak  •  Left-Click to Fire', {
             fontSize: '15px', fontFamily: '"Courier New", monospace',
-            color: '#888888', stroke: '#000000', strokeThickness: 2,
+            color: '#ffffff', stroke: '#000000', strokeThickness: 2,
         }).setOrigin(0.5).setDepth(50).setScrollFactor(0);
 
         const hasGPU = this.textures.exists('fireball_fancy');
@@ -238,7 +273,22 @@ class GameScene extends Phaser.Scene {  // eslint-disable-line no-undef
             { fontSize: '28px', fill: '#ffff00', stroke: '#000000', strokeThickness: 4 }
         ).setOrigin(0.5).setDepth(10);
 
+        this.preparedLabel = this.add.text(
+            this.myPlayer.x, this.myPlayer.y - 110, '',
+            { fontSize: '18px', fill: '#00ffff', stroke: '#000000', strokeThickness: 3, fontStyle: 'bold' }
+        ).setOrigin(0.5).setDepth(10);
+
         console.log(`[GameScene]: I am ${myPlayerId}`);  // eslint-disable-line no-undef
+    }
+
+    prepareSpell(result) {
+        if (!this.myPlayer) return;
+        this.myPlayer.preparedSpell = result;
+        if (this._castingLabel) this._castingLabel.setText('✅  READY!');
+        this.time.delayedCall(1000, () => {
+            if (this._castingLabel.text === '✅  READY!') this._castingLabel.setText('');
+        });
+        console.log('[GameScene]: Spell Prepared:', result.spell);
     }
 
     _handleMovement() {
@@ -325,12 +375,23 @@ class GameScene extends Phaser.Scene {  // eslint-disable-line no-undef
     // ═════════════════════════════════════════════════════════════════════════
 
     _updateIndicator(time) {
-        if (!this.playerIndicator) return;
-        this.playerIndicator.setPosition(
-            this.myPlayer.x,
-            this.myPlayer.y - 70 + Math.sin(time / 150) * 8
-        );
+        if (!this.playerIndicator || !this.myPlayer) return;
+        const bob = Math.sin(time / 150) * 8;
+        this.playerIndicator.setPosition(this.myPlayer.x, this.myPlayer.y - 70 + bob);
         this.playerIndicator.setVisible(this.myPlayer.active);
+
+        if (this.preparedLabel) {
+            this.preparedLabel.setPosition(this.myPlayer.x, this.myPlayer.y - 110 + bob);
+            const spell = this.myPlayer.preparedSpell?.spell;
+            if (spell) {
+                this.preparedLabel.setText(`✨ ${spell.toUpperCase()}`);
+                this.preparedLabel.setVisible(true);
+                this.playerIndicator.setTint(0x00ffff);
+            } else {
+                this.preparedLabel.setVisible(false);
+                this.playerIndicator.clearTint();
+            }
+        }
     }
 
     _emitState(delta) {

@@ -171,14 +171,25 @@ async function sendAudioToGemini(audioBlob, volume) {
 
 let lastCastTime = 0;
 const CAST_COOLDOWN_MS = 2000; // 2 seconds between casts
+let recordingTimeout;
 
 window.addEventListener('keydown', async (e) => {
   const now = Date.now();
-  if (e.key === 'Shift' && !e.repeat && !isRecording && (now - lastCastTime) >= CAST_COOLDOWN_MS) {
+  if (e.key === 'Shift' && !e.repeat) {
+    if (isRecording) {
+      // Early stop if pressed again while recording
+      if (recordingTimeout) clearTimeout(recordingTimeout);
+      stopRecording();
+      return;
+    }
+
+    if ((now - lastCastTime) < CAST_COOLDOWN_MS) return;
+
     if (!mediaRecorder) {
       const ok = await initAudio();
       if (!ok) return;
     }
+
     if (mediaRecorder.state === 'inactive') {
       if (audioContext?.state === 'suspended') await audioContext.resume();
       isRecording = true;
@@ -187,19 +198,28 @@ window.addEventListener('keydown', async (e) => {
       console.log('[Shift Down] Recording... speed -> 50%');
       mediaRecorder.start();
       updateVolumeLevel();
+      
+      // Notify UI
+      window.dispatchEvent(new Event('spellRecordStart'));
+
+      // Auto-stop after 2.5 seconds
+      recordingTimeout = setTimeout(() => {
+        stopRecording();
+      }, 2500);
     }
   }
 });
 
-window.addEventListener('keyup', (e) => {
-  if (e.key === 'Shift' && isRecording) {
-    isRecording = false;
-    lastCastTime = Date.now();
-    playerSpeed = PLAYER_SPEED_NORMAL;
-    console.log('[Shift Up] Recording stopped. speed -> 100%');
-    if (mediaRecorder?.state === 'recording') {
-      mediaRecorder.stop();
-      cancelAnimationFrame(animationId);
-    }
+function stopRecording() {
+  if (!isRecording) return;
+  isRecording = false;
+  lastCastTime = Date.now();
+  playerSpeed = PLAYER_SPEED_NORMAL;
+  console.log('[Stop] Recording stopped. speed -> 100%');
+  window.dispatchEvent(new Event('spellRecordStop'));
+
+  if (mediaRecorder?.state === 'recording') {
+    mediaRecorder.stop();
+    cancelAnimationFrame(animationId);
   }
-});
+}
