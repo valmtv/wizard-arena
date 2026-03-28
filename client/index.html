@@ -6,29 +6,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wizard Arena | local LAN 2-Player Combat</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Phaser 3 CDN (using standard arcade physics build) -->
+
+    <!-- Phaser 3 (arcade physics build) -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
-    <!-- Socket.io client (served by Node.js automatically) -->
+    <!-- Socket.io client (served automatically by Node.js) -->
     <script src="/socket.io/socket.io.js"></script>
 </head>
 
 <body>
+    <!-- WebGPU procedural background (drawn behind Phaser canvas) -->
     <canvas id="gpu-bg"></canvas>
     <div id="game-container"></div>
+
+    <!-- TypeGPU import map (used by bg-shader.js) -->
     <script type="importmap">
-        {
-            "imports": {
-                "typegpu": "https://unpkg.com/typegpu@latest/dist/index.js"
-            }
-        }
+        { "imports": { "typegpu": "https://unpkg.com/typegpu@latest/dist/index.js" } }
     </script>
-    <script type="module" src="bg-shader.js"></script>
-    <!-- config.js MUST be first so CONFIG is defined before audio.js reads it -->
+
+    <!--
+        Script load order — each file depends only on what's above it:
+
+        1. config.js       — API keys (must be first)
+        2. audio.js        — mic capture + Gemini; exports playerSpeed global
+        3. arena.js        — window.ARENAS definitions
+        4. utils.js        — createCircleTexture, volumeToScale, createSoulsButton
+        5. socket.js       — socket, myPlayerId, gameSceneRef globals + event wiring
+        6. scenes/         — Phaser Scene classes (Phaser must be loaded above)
+        7. game.js         — Phaser.Game config + instantiation
+        8. bg-shader.js    — WebGPU module (async, runs independently)
+    -->
     <script src="config.js"></script>
     <script src="audio.js"></script>
     <script src="arena.js"></script>
-    <script src="menu.js"></script>
+    <script src="utils.js"></script>
+    <script src="socket.js"></script>
+    <script src="scenes/MenuScene.js"></script>
+    <script src="scenes/EndScene.js"></script>
+    <script src="scenes/GameScene.js"></script>
     <script src="game.js"></script>
+    <script type="module" src="bg-shader.js"></script>
 </body>
 
 </html>
