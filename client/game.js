@@ -119,32 +119,99 @@ class MainMenuScene extends Phaser.Scene {
 
         // Lobby UI Box
         const lobbyBox = this.add.graphics();
-        lobbyBox.fillStyle(0x000000, 0.5);
+        lobbyBox.fillStyle(0x000000, 0.6);
         lobbyBox.lineStyle(1, 0x333333, 1);
-        lobbyBox.fillRect(width / 2 - 250, height * 0.4, 500, 250);
-        lobbyBox.strokeRect(width / 2 - 250, height * 0.4, 500, 250);
+        lobbyBox.fillRect(width / 2 - 350, height * 0.38, 700, 370);
+        lobbyBox.strokeRect(width / 2 - 350, height * 0.38, 700, 370);
 
-        this.add.text(width / 2, height * 0.48, 'LAN LOBBY', {
+        this.add.text(width / 2, height * 0.42, 'LAN LOBBY', {
             fontFamily: 'Georgia, serif',
             fontSize: '28px',
             color: '#cccccc',
             letterSpacing: 4
         }).setOrigin(0.5);
 
-        this.add.text(width / 2, height * 0.55, 'Player 1: Connected', {
+        this.add.text(width / 2 - 150, height * 0.49, 'Player 1: Connected', {
             fontFamily: 'Georgia, serif',
-            fontSize: '24px',
-            color: '#ff4444' // red
+            fontSize: '22px',
+            color: '#ff4444' 
         }).setOrigin(0.5);
 
-        this.add.text(width / 2, height * 0.62, 'Player 2: Waiting...', {
+        this.add.text(width / 2 + 150, height * 0.49, 'Player 2: Waiting...', {
             fontFamily: 'Georgia, serif',
-            fontSize: '24px',
+            fontSize: '22px',
             color: '#555555' 
         }).setOrigin(0.5);
 
+        // Class Selection Title
+        this.add.text(width / 2, height * 0.56, 'Choose Your Wizard', {
+            fontFamily: 'Georgia, serif',
+            fontSize: '20px',
+            color: '#aaaaaa',
+            fontStyle: 'italic'
+        }).setOrigin(0.5);
+
+        this.selectedClass = 1;
+
+        const createCard = (x, y, label, colorHex, classId) => {
+            const container = this.add.container(x, y);
+            const w = 180;
+            const h = 120;
+
+            const bg = this.add.graphics();
+            
+            const text = this.add.text(0, 30, label, {
+                fontFamily: 'Georgia, serif',
+                fontSize: '20px',
+                color: '#ffffff',
+                fontStyle: 'bold'
+            }).setOrigin(0.5);
+            
+            const avatar = this.add.graphics();
+            avatar.fillStyle(colorHex, 1);
+            avatar.fillCircle(0, -15, 25);
+
+            container.add([bg, avatar, text]);
+
+            const drawCard = () => {
+                bg.clear();
+                bg.fillStyle(0x000000, 0.8);
+                if (this.selectedClass === classId) {
+                    bg.lineStyle(3, colorHex, 1);
+                    text.setColor('#ffffff');
+                    
+                    const hexStr = '#' + colorHex.toString(16).padStart(6, '0');
+                    text.setShadow(0, 0, hexStr, 8);
+                } else {
+                    bg.lineStyle(2, 0x444444, 0.8);
+                    text.setColor('#aaaaaa');
+                    text.setShadow(0, 0, '#000000', 0);
+                }
+                bg.fillRect(-w/2, -h/2, w, h);
+                bg.strokeRect(-w/2, -h/2, w, h);
+            };
+
+            const zone = this.add.zone(0, 0, w, h).setInteractive({ cursor: 'pointer' });
+            container.add(zone);
+
+            zone.on('pointerdown', () => {
+                this.selectedClass = classId;
+                this.events.emit('classChanged');
+            });
+            zone.on('pointerover', () => { container.setScale(1.05); });
+            zone.on('pointerout', () => { container.setScale(1); });
+
+            this.events.on('classChanged', drawCard);
+            drawCard();
+
+            return container;
+        };
+
+        createCard(width / 2 - 120, height * 0.66, 'Pyromancer', 0xff4400, 1);
+        createCard(width / 2 + 120, height * 0.66, 'Frost Magus', 0x0088ff, 2);
+
         // Ready Button -> goes to EndScene for testing
-        createSoulsButton(this, width / 2, height * 0.8, 'READY', () => {
+        createSoulsButton(this, width / 2, height * 0.85, 'READY', () => {
             this.scene.start('EndScene');
         });
     }
