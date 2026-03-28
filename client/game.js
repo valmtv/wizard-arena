@@ -61,6 +61,9 @@ class GameScene extends Phaser.Scene {
         // Fireball group
         this.fireballs = null;
 
+        // Environment references
+        this.platforms = null;
+
         // WASD keys
         this.wasd = null;
     }
@@ -76,6 +79,7 @@ class GameScene extends Phaser.Scene {
             frameWidth: 32,
             frameHeight: 32
         });
+        this.load.image('ruin', 'assets/classical_ruin_tiles.png');
     }
 
     // ── create ────────────────────────────────────────────────────────────────
@@ -132,6 +136,38 @@ class GameScene extends Phaser.Scene {
                 defaultKey: 'fireball_tex',
                 maxSize: 20,
                 allowGravityY: false,       // spells fly straight
+            });
+
+            // Extract just the dark stone brick section from the right side of the mockup floor
+            this.textures.get('ruin').add('plat_stone', 0, 192, 208, 64, 32);
+
+            // Construct mid-air jumps with repeating tile textures
+            this.platforms = this.physics.add.staticGroup();
+
+            const makePlat = (x, y, visualWidth) => {
+                const textureScale = 1.5;
+                const visualHeight = 32 * textureScale;
+                
+                const plat = this.add.tileSprite(x, y, visualWidth, visualHeight, 'ruin', 'plat_stone');
+                plat.tileScaleX = textureScale;
+                plat.tileScaleY = textureScale;
+                
+                this.physics.add.existing(plat, true);
+                this.platforms.add(plat);
+            };
+
+            makePlat(width / 4, height - 150, 256);
+            makePlat(width - (width / 4), height - 250, 256);
+            makePlat(width / 2, height - 400, 256);
+
+            // Physics collisions against platforms
+            this.physics.add.collider(this.player1, this.platforms);
+            this.physics.add.collider(this.player2, this.platforms);
+            this.physics.add.collider(this.fireballs, this.platforms, (fb) => {
+                if (fb.active) {
+                    fb.setActive(false).setVisible(false);
+                    fb.body.setVelocity(0, 0);
+                }
             });
 
             // --- Collision: fireball hits Player 2 → destroy both ---
