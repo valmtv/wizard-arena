@@ -95,147 +95,7 @@ function createSoulsButton(scene, x, y, textStr, onClick) {
 //  MAIN MENU SCENE
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class MainMenuScene extends Phaser.Scene {
-    constructor() {
-        super({ key: 'MainMenuScene' });
-        this.timeElapsed = 0;
-        this.selectedClass = 1;
-    }
-
-    preload() {
-        // Preload bg so the menu has the same atmosphere
-        this.load.image('bg1', 'assets/parallax_mountain_pack/layers/parallax-mountain-bg.png');
-        this.load.image('bg2', 'assets/parallax_mountain_pack/layers/parallax-mountain-montain-far.png');
-        this.load.image('bg3', 'assets/parallax_mountain_pack/layers/parallax-mountain-mountains.png');
-    }
-
-    create() {
-        const { width, height } = this.scale;
-
-        // Atmospheric background (first 3 layers — trees would obscure the UI)
-        this.add.image(width / 2, height / 2, 'bg1').setDisplaySize(width, height).setDepth(-3);
-        this.add.image(width / 2, height / 2, 'bg2').setDisplaySize(width, height).setDepth(-2);
-        this.add.image(width / 2, height / 2, 'bg3').setDisplaySize(width, height).setDepth(-1);
-
-        // Dark overlay so UI is readable
-        this.add.rectangle(0, 0, width, height, 0x000000, 0.55).setOrigin(0);
-
-        // Title
-        this.title = this.add.text(width / 2, height * 0.18, 'Vibe-Wizard Arena', {
-            fontFamily: 'Georgia, serif',
-            fontSize: '72px',
-            color: '#ffffff',
-            fontStyle: 'bold'
-        }).setOrigin(0.5);
-        this.title.setShadow(2, 4, '#000000', 14, false, true);
-
-        // Separator
-        const line = this.add.graphics();
-        line.lineStyle(2, 0x550000, 0.9);
-        line.beginPath();
-        line.moveTo(width / 2 - 220, height * 0.29);
-        line.lineTo(width / 2 + 220, height * 0.29);
-        line.strokePath();
-
-        // Lobby box
-        const lobbyBox = this.add.graphics();
-        lobbyBox.fillStyle(0x000000, 0.65);
-        lobbyBox.lineStyle(1, 0x333333, 1);
-        lobbyBox.fillRect(width / 2 - 350, height * 0.32, 700, 390);
-        lobbyBox.strokeRect(width / 2 - 350, height * 0.32, 700, 390);
-
-        this.add.text(width / 2, height * 0.36, 'LAN LOBBY', {
-            fontFamily: 'Georgia, serif',
-            fontSize: '26px',
-            color: '#cccccc',
-            letterSpacing: 4
-        }).setOrigin(0.5);
-
-        // Live socket identity
-        const p1Label = (myPlayerId === 'Player 1') ? 'Player 1: You ✓' : 'Player 1: Connected';
-        const p2Label = (myPlayerId === 'Player 2') ? 'Player 2: You ✓' : 'Player 2: Waiting...';
-        const p1Color = (myPlayerId === 'Player 1') ? '#4488ff' : '#ff4444';
-        const p2Color = (myPlayerId === 'Player 2') ? '#ff4444' : '#555555';
-
-        this.add.text(width / 2 - 150, height * 0.43, p1Label, {
-            fontFamily: 'Georgia, serif', fontSize: '20px', color: p1Color
-        }).setOrigin(0.5);
-
-        this.add.text(width / 2 + 150, height * 0.43, p2Label, {
-            fontFamily: 'Georgia, serif', fontSize: '20px', color: p2Color
-        }).setOrigin(0.5);
-
-        // Class selection
-        this.add.text(width / 2, height * 0.50, 'Choose Your Wizard', {
-            fontFamily: 'Georgia, serif',
-            fontSize: '18px',
-            color: '#aaaaaa',
-            fontStyle: 'italic'
-        }).setOrigin(0.5);
-
-        const createCard = (x, y, label, colorHex, classId) => {
-            const container = this.add.container(x, y);
-            const w = 180, h = 120;
-
-            const bg = this.add.graphics();
-            const text = this.add.text(0, 30, label, {
-                fontFamily: 'Georgia, serif',
-                fontSize: '19px',
-                color: '#ffffff',
-                fontStyle: 'bold'
-            }).setOrigin(0.5);
-
-            const avatar = this.add.graphics();
-            avatar.fillStyle(colorHex, 1);
-            avatar.fillCircle(0, -15, 24);
-
-            container.add([bg, avatar, text]);
-
-            const drawCard = () => {
-                bg.clear();
-                bg.fillStyle(0x000000, 0.8);
-                if (this.selectedClass === classId) {
-                    bg.lineStyle(3, colorHex, 1);
-                    text.setColor('#ffffff');
-                    text.setShadow(0, 0, '#' + colorHex.toString(16).padStart(6, '0'), 8);
-                } else {
-                    bg.lineStyle(2, 0x444444, 0.8);
-                    text.setColor('#aaaaaa');
-                    text.setShadow(0, 0, '#000000', 0);
-                }
-                bg.fillRect(-w / 2, -h / 2, w, h);
-                bg.strokeRect(-w / 2, -h / 2, w, h);
-            };
-
-            const zone = this.add.zone(0, 0, w, h).setInteractive({ cursor: 'pointer' });
-            container.add(zone);
-            zone.on('pointerdown', () => { this.selectedClass = classId; this.events.emit('classChanged'); });
-            zone.on('pointerover', () => { container.setScale(1.05); });
-            zone.on('pointerout', () => { container.setScale(1); });
-
-            this.events.on('classChanged', drawCard);
-            drawCard();
-        };
-
-        createCard(width / 2 - 120, height * 0.61, 'Pyromancer', 0xff4400, 1);
-        createCard(width / 2 + 120, height * 0.61, 'Frost Magus', 0x0088ff, 2);
-
-        this.add.text(width / 2, height * 0.725, '🎮  A/D to move  ·  SPACE to jump (×2)  ·  SHIFT to cast', {
-            fontFamily: 'Georgia, serif', fontSize: '15px', color: '#666666'
-        }).setOrigin(0.5);
-
-        createSoulsButton(this, width / 2, height * 0.83, 'ENTER ARENA', () => {
-            this.scene.start('GameScene');
-        });
-    }
-
-    update(time, delta) {
-        this.timeElapsed += delta;
-        const scale = 1 + Math.sin(this.timeElapsed * 0.0015) * 0.02;
-        this.title.setScale(scale);
-        this.title.setAlpha(0.85 + Math.sin(this.timeElapsed * 0.002) * 0.15);
-    }
-}
+// MainMenuScene removed in favor of MenuScene from menu.js
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  END SCENE
@@ -270,7 +130,7 @@ class EndScene extends Phaser.Scene {
         });
 
         createSoulsButton(this, width / 2 - 150, height * 0.7, 'Go To Lobby', () => {
-            this.scene.start('MainMenuScene');
+            this.scene.start('MenuScene');
         });
         createSoulsButton(this, width / 2 + 150, height * 0.7, 'Restart', () => {
             this.scene.start('GameScene');
@@ -318,16 +178,16 @@ class GameScene extends Phaser.Scene {
 
     // ── preload ───────────────────────────────────────────────────────────────
     preload() {
-        this.load.image('bg1', 'assets/parallax_mountain_pack/layers/parallax-mountain-bg.png');
-        this.load.image('bg2', 'assets/parallax_mountain_pack/layers/parallax-mountain-montain-far.png');
-        this.load.image('bg3', 'assets/parallax_mountain_pack/layers/parallax-mountain-mountains.png');
-        this.load.image('bg4', 'assets/parallax_mountain_pack/layers/parallax-mountain-trees.png');
-        this.load.image('bg5', 'assets/parallax_mountain_pack/layers/parallax-mountain-foreground-trees.png');
-        this.load.spritesheet('rogue', 'assets/rogue spritesheet calciumtrice.png', {
+        this.load.image('rogue', 'assets/rogue spritesheet calciumtrice.png', {
             frameWidth: 32,
             frameHeight: 32
         });
-        this.load.image('ruin', 'assets/classical_ruin_tiles.png');
+        
+        // Delegate arena-specific assets to the selected arena
+        const arena = window.ARENAS[window.selectedArena || 'ruins'];
+        if (arena && arena.preload) {
+            arena.preload(this);
+        }
     }
 
     // ── create ────────────────────────────────────────────────────────────────
@@ -336,12 +196,11 @@ class GameScene extends Phaser.Scene {
             gameSceneRef = this;
             const { width, height } = this.scale;
 
-            // ── Parallax background ───────────────────────────────────────────
-            this.bg1 = this.add.image(width / 2, height / 2, 'bg1').setDisplaySize(width, height).setDepth(-5);
-            this.bg2 = this.add.image(width / 2, height / 2, 'bg2').setDisplaySize(width, height).setDepth(-4);
-            this.bg3 = this.add.image(width / 2, height / 2, 'bg3').setDisplaySize(width, height).setDepth(-3);
-            this.bg4 = this.add.image(width / 2, height / 2, 'bg4').setDisplaySize(width, height).setDepth(-2);
-            this.bg5 = this.add.image(width / 2, height / 2, 'bg5').setDisplaySize(width, height).setDepth(-1);
+            // ── Background ───────────────────────────────────────────────────
+            const arena = window.ARENAS[window.selectedArena || 'ruins'];
+            if (arena && arena.buildBackground) {
+                arena.buildBackground(this);
+            }
 
             // ── Fireball texture ──────────────────────────────────────────────
             createCircleTexture(this, 'fireball_tex', 10, 0xff8800);
@@ -379,21 +238,10 @@ class GameScene extends Phaser.Scene {
             this.player2.isInvulnerable = false;
             this.player2.hpBar = this.add.graphics();
 
-            // ── Platforms (ruin tile tileSprite) ──────────────────────────────
-            this.textures.get('ruin').add('plat_stone', 0, 192, 208, 64, 32);
-            this.platforms = this.physics.add.staticGroup();
-
-            const makePlat = (x, y, w) => {
-                const plat = this.add.tileSprite(x, y, w, 32 * 1.5, 'ruin', 'plat_stone');
-                plat.tileScaleX = 1.5;
-                plat.tileScaleY = 1.5;
-                this.physics.add.existing(plat, true);
-                this.platforms.add(plat);
-            };
-
-            makePlat(width * 0.25, height - 150, 256);
-            makePlat(width * 0.75, height - 250, 256);
-            makePlat(width * 0.5, height - 400, 256);
+            // ── Platforms ────────────────────────────────────────────────────
+            this.platforms = (arena && arena.buildPlatforms) 
+                ? arena.buildPlatforms(this, width, height)
+                : this.physics.add.staticGroup();
 
             this.physics.add.collider(this.player1, this.platforms);
             this.physics.add.collider(this.player2, this.platforms);
@@ -776,7 +624,7 @@ const config = {
             debug: false,
         },
     },
-    scene: [MainMenuScene, GameScene, EndScene],
+    scene: [MenuScene, GameScene, EndScene],
 };
 
 const game = new Phaser.Game(config);
