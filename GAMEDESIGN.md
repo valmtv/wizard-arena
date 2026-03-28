@@ -26,3 +26,10 @@
 ## 4. Map Pickups (Spawn every 15-20 seconds)
 1.  **Blood Vial:** Restores 20% HP on overlap.
 2.  **Demon Orb:** Grants a buff that forces the player's next spell to automatically cast at 2.0x Scale, regardless of mic volume.
+
+## 5. Tech stack
+
+AI / Core Logic: Gemini Live API- processes live audio into JSON game actions
+Game Engine: 2D canvas in Phaser.js, scaffolded with Google Antigravity
+Multiplayer: Local Node.js + Fishjam for low-latency audio/data sync between two PCs over LAN
+Visuals: TypeGPU for TypeScript-based shaders on spells
