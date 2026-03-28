@@ -185,25 +185,16 @@ class GameScene extends Phaser.Scene {  // eslint-disable-line no-undef
 
                 const scale = (typeof volumeToScale !== 'undefined') ? volumeToScale(result.volume) : 1.0; // eslint-disable-line no-undef
 
-                window.spellCaster.cast(  // eslint-disable-line no-undef
+                window.spellCaster.cast(
                     result,
                     this.myPlayer,
                     this.otherPlayer,
                     pointer
                 );
 
-                // Broadcast to other player
-                const dx = pointer.worldX - this.myPlayer.x;
-                const dy = pointer.worldY - this.myPlayer.y;
-                socket.emit('SPELL_CAST', {  // eslint-disable-line no-undef
-                    spell: result.spell,
-                    x: this.myPlayer.x,
-                    y: this.myPlayer.y,
-                    targetX: pointer.worldX,
-                    targetY: pointer.worldY,
-                    angle: Math.atan2(dy, dx),
-                    scale: scale,
-                });
+                // Clear after firing
+                this.myPlayer.preparedSpell = null;
+                if (this._castingLabel) this._castingLabel.setText('');
             }
         });
     }
@@ -278,7 +269,7 @@ class GameScene extends Phaser.Scene {  // eslint-disable-line no-undef
             { fontSize: '18px', fill: '#00ffff', stroke: '#000000', strokeThickness: 3, fontStyle: 'bold' }
         ).setOrigin(0.5).setDepth(10);
 
-        console.log(`[GameScene]: I am ${myPlayerId}`);  // eslint-disable-line no-undef
+        console.log(`[GameScene]: I am ${window.myPlayerId}`);
     }
 
     prepareSpell(result) {
@@ -409,7 +400,7 @@ class GameScene extends Phaser.Scene {  // eslint-disable-line no-undef
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    //  Network — called by socket.js
+    //  Network — called by fishjam.js
     // ═════════════════════════════════════════════════════════════════════════
 
     onRemoteStateUpdate(data) {
@@ -430,7 +421,7 @@ class GameScene extends Phaser.Scene {  // eslint-disable-line no-undef
         }
     }
 
-    /** Called by socket.js when HP_UPDATE arrives from server. */
+    /** Called by fishjam.js when peer metadata update arrives from other player or server. */
     onHpUpdate({ playerId, hp }) {
         try {
             const player = playerId === 'Player 1' ? this.player1 : this.player2;

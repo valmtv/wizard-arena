@@ -139,31 +139,36 @@ async function joinArena() {
             }
         };
 
-        // Initialize voice chat (publish local mic)
-        await startVoiceChat();
+        // Start voice chat if mic is already granted, otherwise do it on-demand
+        if (window.localMicStream) {
+            await startVoiceChat();
+        } else {
+            console.log('[Fishjam]: Waiting for audio.js to initialize microphone...');
+            // We'll retry when the user first uses Shift (which calls initAudio in audio.js)
+            window.addEventListener('micReady', async () => {
+                await startVoiceChat();
+            });
+        }
 
     } catch (err) {
         console.error('[Fishjam Init Error]:', err);
     }
 }
 
-/** bridge from audio.js (Gemini result) to spells.js */
+/** bridge from audio.js (Gemini result) to game level logic */
 window.castSpellFromAudio = (result) => {
-    if (!window.gameSceneRef?.myPlayer) {
-        console.warn('[Fishjam]: castSpellFromAudio called before GameScene or Player was ready.');
+    if (!window.gameSceneRef) {
+        console.warn('[Fishjam]: castSpellFromAudio called before GameScene was ready.');
         return;
     }
-    window.spellCaster.cast(
-        result,
-        window.gameSceneRef.myPlayer,
-        window.gameSceneRef.otherPlayer,
-        window.gameSceneRef.input.activePointer
-    );
+    window.gameSceneRef.prepareSpell(result);
 };
 
 async function startVoiceChat() {
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = window.localMicStream || await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (!window.localMicStream) window.localMicStream = stream;
+        
         const track = stream.getAudioTracks()[0];
         await client.addTrack(track, stream, { type: 'voice' });
         console.log('[Fishjam]: Local voice published.');

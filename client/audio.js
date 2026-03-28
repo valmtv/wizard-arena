@@ -10,7 +10,7 @@ const PLAYER_SPEED_NORMAL = 1.0;
 const PLAYER_SPEED_CASTING = 0.5;
 
 const API_KEY = CONFIG.GEMINI_API_KEY;
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-8b:generateContent?key=${API_KEY}`;
 
 const SYSTEM_PROMPT = `Listen to the audio and transcribe exactly what the user said.
 
@@ -73,6 +73,8 @@ async function initAudio() {
       await sendAudioToGemini(audioBlob, peakVolume);
     };
 
+    window.localMicStream = stream; // Share with Fishjam
+    window.dispatchEvent(new CustomEvent('micReady'));
     return true;
   } catch (err) {
     console.error('[Audio Init Error]:', err);
