@@ -11,8 +11,8 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "express": "^5.2.1",
-    "socket.io": "^4.8.3",
-    "socket.io-client": "^4.8.3"
+    "@fishjam-cloud/js-server-sdk": "^0.3.0",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1"
   }
 }

@@ -3,121 +3,147 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const { Server } = require('socket.io');
+const { FishjamClient } = require('@fishjam-cloud/js-server-sdk');
+const axios = require('axios');
 
 const app = express();
+app.use(express.json());
 app.use(express.static(path.join(__dirname, '../client')));
 app.use('/assets', express.static(path.join(__dirname, '../assets')));
 
 // ── Game state (server-authoritative) ─────────────────────────────────────
-// The server owns HP. Clients own position/physics.
-
 const STARTING_HP = 100;
-const RESPAWN_DELAY = 3000; // ms
+const RESPAWN_DELAY = 3000;
 
 let gameState = {
-    'Player 1': { hp: STARTING_HP, alive: true },
-    'Player 2': { hp: STARTING_HP, alive: true },
+    'Player 1': { hp: STARTING_HP, alive: true, peerId: null },
+    'Player 2': { hp: STARTING_HP, alive: true, peerId: null },
 };
 
 function resetGameState() {
     gameState = {
-        'Player 1': { hp: STARTING_HP, alive: true },
-        'Player 2': { hp: STARTING_HP, alive: true },
+        'Player 1': { hp: STARTING_HP, alive: true, peerId: null },
+        'Player 2': { hp: STARTING_HP, alive: true, peerId: null },
     };
 }
 
-// ── Server setup ───────────────────────────────────────────────────────────
+// ── Fishjam Setup ──────────────────────────────────────────────────────────
 
-const players = {};
-let playerCount = 0;
+const FJ_HOST = process.env.FJ_HOST || '127.0.0.1';
+const fishjam = new FishjamClient({
+    fishjamUrl: `http://${FJ_HOST}:5002`,
+    managementToken: 'development'
+});
 
-function attachSocketIO(server) {
-    const io = new Server(server);
+let roomId = null;
 
-    io.on('connection', (socket) => {
-        console.log(`[Server]: Connected: ${socket.id}`);
+async function initFishjam() {
+    try {
+        console.log(`[Fishjam]: Initializing on http://${FJ_HOST}:5002...`);
+        const room = await fishjam.createRoom({
+            videoCodec: 'h264'
+        });
+        roomId = room.id;
+        console.log(`[Fishjam]: Room created: ${roomId}`);
+    } catch (err) {
+        console.error('[Fishjam Error]: Failed to create room —', err.message);
+    }
+}
 
-        if (playerCount >= 2) {
-            console.log(`[Server]: Rejected ${socket.id} — lobby full.`);
-            socket.disconnect(true);
-            return;
+/** Helper to update peer metadata via Fishjam REST API (SDK v0.3.0 lacks this) */
+async function updatePeerMetadata(roomId, peerId, metadata) {
+    const url = `http://${FJ_HOST}:5002/room/${roomId}/peer/${peerId}`;
+    try {
+        await axios.patch(url, { metadata }, {
+            headers: { 'Authorization': `Bearer development` } // Matches managementToken
+        });
+    } catch (err) {
+        console.error(`[Fishjam REST Error]: PATCH ${url} failed —`, err.response?.data || err.message);
+        throw err;
+    }
+}
+
+initFishjam();
+
+// ── REST API (Signaling + Hits) ───────────────────────────────────────────
+
+app.get('/join', async (req, res) => {
+    try {
+        if (!roomId) {
+            return res.status(503).json({ error: 'Room not ready' });
         }
 
-        const assignedId = players['Player 1'] ? 'Player 2' : 'Player 1';
-        players[assignedId] = socket.id;
-        playerCount++;
-        console.log(`[Server]: Assigned ${assignedId} to ${socket.id}`);
+        const assignedId = !gameState['Player 1'].peerId ? 'Player 1' : 
+                          (!gameState['Player 2'].peerId ? 'Player 2' : null);
 
-        socket.emit('PLAYER_JOINED', { id: assignedId, socketId: socket.id });
+        if (!assignedId) {
+            return res.status(403).json({ error: 'Lobby full' });
+        }
 
-        // Sync current HP to the newly joined player
-        socket.emit('HP_UPDATE', { playerId: 'Player 1', hp: gameState['Player 1'].hp });
-        socket.emit('HP_UPDATE', { playerId: 'Player 2', hp: gameState['Player 2'].hp });
-
-        // ── Position / spell relay ─────────────────────────────────────────
-
-        socket.on('STATE_UPDATE', (data) => {
-            socket.broadcast.emit('BROADCAST_STATE', data);
+        const { peer, peerToken } = await fishjam.createPeer(roomId, {
+            metadata: { assignedId, hp: gameState[assignedId].hp }
         });
 
-        socket.on('SPELL_CAST', (data) => {
-            socket.broadcast.emit('BROADCAST_SPELL', data);
+        gameState[assignedId].peerId = peer.id;
+        console.log(`[Server]: Assigned ${assignedId} to Peer ${peer.id}`);
+
+        res.json({
+            peerToken,
+            peerId: peer.id,
+            assignedId,
+            roomId,
+            fishjamUrl: `ws://${FJ_HOST}:5002/socket/peer/websocket`
         });
+    } catch (err) {
+        console.error('[Join Error]:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
-        // ── HP authority ───────────────────────────────────────────────────
-        // Client reports a hit; server validates and resolves damage.
+app.post('/hit', async (req, res) => {
+    const { targetId, damage, spell } = req.body;
+    const target = gameState[targetId];
 
-        socket.on('SPELL_HIT', ({ targetId, damage, spell }) => {
-            const target = gameState[targetId];
-            if (!target || !target.alive) return;
+    if (!target || !target.alive || !target.peerId) {
+        return res.json({ success: false, reason: 'Target not available' });
+    }
 
-            const clampedDmg = Math.min(Math.max(0, damage), 50); // sanity cap
-            target.hp = Math.max(0, target.hp - clampedDmg);
+    const clampedDmg = Math.min(Math.max(0, damage), 50);
+    target.hp = Math.max(0, target.hp - clampedDmg);
 
-            console.log(`[Server]: ${spell} hit ${targetId} for ${clampedDmg}hp → ${target.hp}hp`);
+    console.log(`[Server]: ${spell} hit ${targetId} for ${clampedDmg}hp → ${target.hp}hp`);
 
-            // Broadcast authoritative HP to both players
-            io.emit('HP_UPDATE', { playerId: targetId, hp: target.hp });
+    // Broadcast update via Fishjam Metadata using our helper
+    try {
+        await updatePeerMetadata(roomId, target.peerId, { hp: target.hp });
+        
+        if (target.hp <= 0) {
+            target.alive = false;
+            console.log(`[Server]: ${targetId} died. Respawning...`);
+            
+            setTimeout(async () => {
+                target.hp = STARTING_HP;
+                target.alive = true;
+                await updatePeerMetadata(roomId, target.peerId, { hp: STARTING_HP });
+                console.log(`[Server]: ${targetId} respawned.`);
+            }, RESPAWN_DELAY);
+        }
+        res.json({ success: true, hp: target.hp });
+    } catch (err) {
+        console.error('[Metadata Update Error]:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
-            if (target.hp <= 0) {
-                target.alive = false;
-                console.log(`[Server]: ${targetId} died. Respawning in ${RESPAWN_DELAY}ms`);
-
-                setTimeout(() => {
-                    target.hp = STARTING_HP;
-                    target.alive = true;
-                    io.emit('HP_UPDATE', { playerId: targetId, hp: STARTING_HP });
-                    console.log(`[Server]: ${targetId} respawned.`);
-                }, RESPAWN_DELAY);
-            }
-        });
-
-        // ── Disconnect ─────────────────────────────────────────────────────
-
-        socket.on('disconnect', (reason) => {
-            console.log(`[Server]: ${assignedId} disconnected — ${reason}`);
-            if (players[assignedId] === socket.id) {
-                delete players[assignedId];
-                playerCount--;
-            }
-            // Reset game state so a fresh player can join cleanly
-            if (playerCount === 0) resetGameState();
-        });
-
-        socket.on('error', (err) => console.error(`[Server]: socket error for ${assignedId}:`, err.message));
-        socket.on('connect_error', (err) => console.error(`[Server]: connect_error for ${assignedId}:`, err.message));
-    });
-
-    io.engine.on('connection_error', (err) => {
-        console.error('[Server]: engine connection_error:', err.message);
-    });
-}
+// Reset logic when players leave would usually use webhooks or polling.
+// For now, we'll expose a simple reset or rely on process restart.
 
 // ── HTTPS / HTTP boot ──────────────────────────────────────────────────────
 
 const CERT_KEY = path.join(__dirname, 'cert', 'key.pem');
 const CERT_CERT = path.join(__dirname, 'cert', 'cert.pem');
+
+const port = process.env.PORT || 3000;
 
 if (fs.existsSync(CERT_KEY) && fs.existsSync(CERT_CERT)) {
     const httpsServer = https.createServer({
@@ -125,19 +151,13 @@ if (fs.existsSync(CERT_KEY) && fs.existsSync(CERT_CERT)) {
         cert: fs.readFileSync(CERT_CERT),
     }, app);
 
-    attachSocketIO(httpsServer);
-    httpsServer.listen(3000, () => {
-        console.log('[Server]: Wizard Arena (HTTPS) → https://localhost:3000');
-        console.log('[Server]: LAN friend → https://<YOUR-LAN-IP>:3000 (accept cert warning)');
+    httpsServer.listen(port, () => {
+        console.log(`[Server]: Wizard Arena (HTTPS) → https://localhost:${port}`);
     });
 } else {
     const httpServer = http.createServer(app);
-    attachSocketIO(httpServer);
-    httpServer.listen(3000, () => {
-        console.log('[Server]: Wizard Arena (HTTP) → http://localhost:3000');
-        console.log('[Server]: ⚠️  Microphone will NOT work for LAN players over HTTP.');
-        console.log('[Server]: Generate a self-signed cert to fix this:');
-        console.log('   mkdir -p server/cert && cd server/cert');
-        console.log('   openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=localhost"');
+    httpServer.listen(port, () => {
+        console.log(`[Server]: Wizard Arena (HTTP) → http://localhost:${port}`);
+        console.log('[Server]: WebRTC requires HTTPS or localhost to access camera/mic.');
     });
 }

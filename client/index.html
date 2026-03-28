@@ -7,7 +7,6 @@
     <title>Wizard Arena | local LAN 2-Player Combat</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
-    <script src="/socket.io/socket.io.js"></script>
 </head>
 
 <body>
@@ -22,7 +21,7 @@
         3. arena.js     — window.ARENAS definitions
         4. utils.js     — createCircleTexture, createSpellTextures, volumeToScale, createSoulsButton
         5. spells.js    — SpellCaster class; registers window.spellCaster
-        6. socket.js    — socket, myPlayerId, gameSceneRef + event wiring
+        6. fishjam.js   — replaces socket.js; peer metadata + voice chat
         7. scenes/      — Phaser Scene classes
         8. game.js      — Phaser.Game instantiation
         9. bg-shader.js — WebGPU background (async, independent)
@@ -32,10 +31,11 @@
     <script src="arena.js"></script>
     <script src="utils.js"></script>
     <script src="spells.js"></script>
-    <script src="socket.js"></script>
+    <script type="module" src="fishjam.js"></script>
     <script src="scenes/MenuScene.js"></script>
     <script src="scenes/EndScene.js"></script>
     <script src="scenes/GameScene.js"></script>
+
     <script type="module" src="spell-fx.js"></script>
     <script type="module" src="game.js"></script>
     <script type="module" src="bg-shader.js"></script>

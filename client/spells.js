@@ -56,11 +56,24 @@ class SpellCaster {
                 case 'fireball': return this._launchBall(caster, 'fireball', scale, targetX, targetY);
                 case 'frostbite': return this._launchBall(caster, 'frostbite', scale, targetX, targetY - 180);
                 case 'bolt': return this._launchBall(caster, 'bolt', scale * 0.6, targetX, targetY);
-                case 'nova': return this._castNova(caster, target, scale);
+                case 'nova': this._castNova(caster, target, scale); break;
                 default:
                     console.warn('[SpellCaster]: Unknown spell:', result.spell);
-                    return this._launchBall(caster, 'fireball', scale, targetX, targetY);
+                    this._launchBall(caster, 'fireball', scale, targetX, targetY);
             }
+
+            // --- Network Notification ---
+            if (caster === window.gameSceneRef?.myPlayer && window.fishjam) {
+                window.fishjam.castSpell({
+                    spell: result.spell,
+                    x: caster.x,
+                    y: caster.y,
+                    targetX,
+                    targetY,
+                    scale
+                });
+            }
+            return true;
         } catch (err) {
             console.error('[SpellCaster.cast Error]:', err);
         }

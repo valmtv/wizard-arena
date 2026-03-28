@@ -308,11 +308,13 @@ class GameScene extends Phaser.Scene {  // eslint-disable-line no-undef
             if (dmg === 0) return;
 
             // Tell the server — it owns HP
-            socket.emit('SPELL_HIT', {  // eslint-disable-line no-undef
-                targetId: (player === this.player1) ? 'Player 1' : 'Player 2',
-                damage: dmg,
-                spell: ball.spellType,
-            });
+            if (window.fishjam) {
+                window.fishjam.emitHit({
+                    targetId: (player === this.player1) ? 'Player 1' : 'Player 2',
+                    damage: dmg,
+                    spell: ball.spellType,
+                });
+            }
         } catch (err) {
             console.error('[_onBallHit Error]:', err);
         }
@@ -335,12 +337,14 @@ class GameScene extends Phaser.Scene {  // eslint-disable-line no-undef
         this.stateTimer += delta;
         if (this.stateTimer < this.STATE_INTERVAL) return;
         this.stateTimer = 0;
-        socket.emit('STATE_UPDATE', {  // eslint-disable-line no-undef
-            x: this.myPlayer.x,
-            y: this.myPlayer.y,
-            vx: this.myPlayer.body.velocity.x,
-            vy: this.myPlayer.body.velocity.y,
-        });
+        if (window.fishjam) {
+            window.fishjam.sendMessage({
+                x: this.myPlayer.x,
+                y: this.myPlayer.y,
+                vx: this.myPlayer.body.velocity.x,
+                vy: this.myPlayer.body.velocity.y,
+            });
+        }
     }
 
     // ═════════════════════════════════════════════════════════════════════════
