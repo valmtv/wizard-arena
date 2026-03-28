@@ -107,8 +107,14 @@ class GameScene extends Phaser.Scene {
                 repeat: -1
             });
             this.anims.create({
-                key: 'rogue-run',
+                key: 'rogue-cast',
                 frames: this.anims.generateFrameNumbers('rogue', { start: 10, end: 19 }),
+                frameRate: 15,
+                repeat: 0  // play once
+            });
+            this.anims.create({
+                key: 'rogue-run',
+                frames: this.anims.generateFrameNumbers('rogue', { start: 20, end: 29 }),
                 frameRate: 15,
                 repeat: -1
             });
@@ -195,8 +201,18 @@ class GameScene extends Phaser.Scene {
                 right: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
             };
 
-            // --- Click to cast fireball ---
+            // --- Click to cast fireball (Phaser handles the actual spell) ---
             this.input.on('pointerdown', this.castFireball, this);
+
+            // --- Native mousedown: trigger cast animation as early as possible ---
+            this.game.canvas.addEventListener('mousedown', () => {
+                if (!myPlayer || myPlayer.isCasting) return;
+                myPlayer.isCasting = true;
+                myPlayer.anims.play('rogue-cast', true);
+                myPlayer.once('animationcomplete-rogue-cast', () => {
+                    myPlayer.isCasting = false;
+                });
+            });
 
             // --- World bounds kill fireballs that leave the screen ---
             this.physics.world.on('worldbounds', (body) => {
@@ -350,6 +366,10 @@ class GameScene extends Phaser.Scene {
     updatePlayerAnimations(player) {
         if (!player || !player.active) return;
         
+        // Don't interrupt the cast animation while it's playing
+        if (player.isCasting) return;
+
+        // Use rogue-run (frames 20-29) when moving, rogue-idle when still
         if (Math.abs(player.body.velocity.x) > 5 || Math.abs(player.body.velocity.y) > 5) {
             player.anims.play('rogue-run', true);
         } else {
@@ -367,6 +387,9 @@ class GameScene extends Phaser.Scene {
     castFireball(pointer) {
         try {
             if (!myPlayer) return;
+
+            // Play cast animation immediately on click (before any other setup)
+            // NOTE: animation is triggered earlier via native mousedown on canvas.
 
             // Get an inactive fireball from the pool
             const fireball = this.fireballs.get(myPlayer.x, myPlayer.y);
