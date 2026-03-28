@@ -64,6 +64,9 @@ class GameScene extends Phaser.Scene {
         // Environment references
         this.platforms = null;
 
+        // Player UI
+        this.playerIndicator = null;
+
         // WASD keys
         this.wasd = null;
     }
@@ -114,7 +117,6 @@ class GameScene extends Phaser.Scene {
             this.player1 = this.physics.add.sprite(200, height / 2, 'rogue');
             this.player1.setCollideWorldBounds(true);
             this.player1.setScale(3.5);
-            this.player1.setTint(0x88bbff); // Light blue tint
             this.player1.setImmovable(true);
             this.player1.hp = 100;
             this.player1.isInvulnerable = false;
@@ -125,7 +127,6 @@ class GameScene extends Phaser.Scene {
             this.player2.setCollideWorldBounds(true);
             this.player2.setScale(3.5);
             this.player2.setFlipX(true); // look left by default
-            this.player2.setTint(0xff8888); // Light red tint
             this.player2.setImmovable(true);
             this.player2.hp = 100;
             this.player2.isInvulnerable = false;
@@ -246,6 +247,14 @@ class GameScene extends Phaser.Scene {
                 // Lock the other player since they are network-controlled
                 otherPlayer.setImmovable(true);
                 otherPlayer.setDragX(0);
+
+                // Create a floating arrow layout mapping myPlayer
+                this.playerIndicator = this.add.text(myPlayer.x, myPlayer.y - 60, '▼', {
+                    fontSize: '32px',
+                    fill: '#ffff00',
+                    stroke: '#000000',
+                    strokeThickness: 4
+                }).setOrigin(0.5).setDepth(10);
             }
 
             this.handleMyMovement();
@@ -255,6 +264,15 @@ class GameScene extends Phaser.Scene {
             
             this.updateHealthBar(this.player1);
             this.updateHealthBar(this.player2);
+
+            // Update floating arrow position
+            if (this.playerIndicator && myPlayer.active) {
+                const bobOffset = Math.sin(this.time.now / 150) * 8;
+                this.playerIndicator.setPosition(myPlayer.x, myPlayer.y - 70 + bobOffset);
+                this.playerIndicator.setVisible(true);
+            } else if (this.playerIndicator && !myPlayer.active) {
+                this.playerIndicator.setVisible(false);
+            }
 
             // Emit STATE_UPDATE constantly
             socket.emit('STATE_UPDATE', {
@@ -373,6 +391,8 @@ class GameScene extends Phaser.Scene {
                 (dy / magnitude) * projectileSpeed
             );
             
+            fireball.owner = myPlayer;
+
             // Broadcast Spell
             socket.emit('SPELL_CAST', {
                 spell: 'fireball',
@@ -408,15 +428,25 @@ class GameScene extends Phaser.Scene {
                 (dx / magnitude) * projectileSpeed,
                 (dy / magnitude) * projectileSpeed
             );
+            
+            fireball.owner = otherPlayer;
         } catch (err) {
             console.error('[spawnRemoteFireball Error]:', err);
         }
     }
 
     // ── onFireballHit ─────────────────────────────────────────────────────────
-    onFireballHit(fireball, player) {
+    onFireballHit(obj1, obj2) {
         try {
+            // Phaser overlaps between a Group and a Sprite pass the arguments by type,
+            // not by the order they were provided in the config. We dynamically identify them:
+            const isPlayer = (o) => o === this.player1 || o === this.player2;
+            const player = isPlayer(obj1) ? obj1 : obj2;
+            const fireball = isPlayer(obj1) ? obj2 : obj1;
+
             if (!fireball.active) return;
+            if (fireball.owner === player) return; // Prevent hitting yourself
+
             fireball.disableBody(true, true);
             fireball.setPosition(-9999, -9999);
             
